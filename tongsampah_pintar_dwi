@@ -1,0 +1,147 @@
+#include <Servo.h>
+#include <LiquidCrystal_I2C.h>
+
+// ==============================
+// DEKLARASI PIN
+// ==============================
+const int buttonOpen  = 8;
+const int buttonClose = 9;
+
+const int ledOpen  = 12;
+const int ledClose = 11;
+
+// ==============================
+// SERVO & LCD
+// ==============================
+Servo servoMotor;
+int posOpen  = 90;   
+int posClose = 0;    
+
+LiquidCrystal_I2C lcd(0x27, 16, 2);  
+
+// ==============================
+// VARIABEL STATUS & DEBOUNCE
+// ==============================
+bool isOpen = false;
+
+unsigned long lastDebounceTimeOpen  = 0;
+unsigned long lastDebounceTimeClose = 0;
+const unsigned long debounceDelay = 200;
+
+// ==============================
+// FUNGSI RUNNING TEXT
+// ==============================
+void runningText(String text, int row, int delayTime) {
+  int len = text.length();
+
+  // Mulai scroll dari kanan ke kiri
+  for (int i = 0; i < len + 16; i++) {
+    lcd.setCursor(0, row);
+
+    // karakter yang tampil
+    String displayText = text.substring(max(0, i - 16), min(i, len));
+
+    // isi area LCD dengan spasi dulu biar bersih
+    lcd.print("                ");
+    lcd.setCursor(0, row);
+    lcd.print(displayText);
+
+    delay(delayTime);
+  }
+}
+
+// ==============================
+// SETUP
+// ==============================
+void setup() {
+  // Serial Monitor
+  Serial.begin(9600);
+  Serial.println("=== SISTEM TONG SAMPAH PINTAR MULAI ===");
+
+  pinMode(buttonOpen, INPUT_PULLUP);
+  pinMode(buttonClose, INPUT_PULLUP);
+
+  pinMode(ledOpen, OUTPUT);
+  pinMode(ledClose, OUTPUT);
+
+  servoMotor.attach(10);
+
+  servoMotor.write(posClose);
+  isOpen = false;
+
+  lcd.init();
+  lcd.backlight();
+
+  lcd.setCursor(0, 0);
+  lcd.clear();
+  runningText("SELAMAT DATANG DI TONG SAMPAH PINTAR  ", 0, 100);
+
+  digitalWrite(ledOpen, LOW);
+  digitalWrite(ledClose, HIGH);
+
+  Serial.println("Posisi awal: TERTUTUP (servo = 0 derajat)");
+  Serial.println("LED Close = ON, LED Open = OFF");
+}
+
+// ==============================
+// LOOP
+// ==============================
+void loop() {
+  int readOpen  = digitalRead(buttonOpen);
+  int readClose = digitalRead(buttonClose);
+  unsigned long now = millis();
+
+  // (Opsional) pantau nilai tombol
+  // Serial.print("Open: "); Serial.print(readOpen);
+  // Serial.print("  Close: "); Serial.println(readClose);
+
+  // Tombol BUKA
+  if (readOpen == LOW && (now - lastDebounceTimeOpen > debounceDelay)) {
+    lastDebounceTimeOpen = now;
+
+    Serial.println("Tombol BUKA ditekan");
+
+    if (!isOpen) {
+      isOpen = true;
+
+      servoMotor.write(posOpen);
+
+      lcd.clear();
+      runningText("TONG SAMPAH TERBUKA  ", 0, 100);
+
+      digitalWrite(ledOpen, HIGH);
+      digitalWrite(ledClose, LOW);
+
+      Serial.println("Status: TERBUKA");
+      Serial.println("Servo = 90 derajat");
+      Serial.println("LED Open = ON, LED Close = OFF");
+    } else {
+      Serial.println("Perintah BUKA diabaikan (sudah terbuka)");
+    }
+  }
+
+  // Tombol TUTUP
+  if (readClose == LOW && (now - lastDebounceTimeClose > debounceDelay)) {
+    lastDebounceTimeClose = now;
+
+    Serial.println("Tombol TUTUP ditekan");
+
+    if (isOpen) {
+      isOpen = false;
+
+      servoMotor.write(posClose);
+
+      lcd.clear();
+      runningText("TERIMAKASIH SUDAH BUANG SAMPAH PADA TEMPATNYA  ", 0, 100);
+
+      digitalWrite(ledOpen, LOW);
+      digitalWrite(ledClose, HIGH);
+
+      Serial.println("Status: TERTUTUP");
+      Serial.println("Servo = 0 derajat");
+      Serial.println("LED Open = OFF, LED Close = ON");
+    } else {
+      Serial.println("Perintah TUTUP diabaikan (sudah tertutup)");
+    }
+  }
+}
